@@ -1,6 +1,7 @@
 package oscommands
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -133,5 +134,25 @@ func TestProcessOutput(t *testing.T) {
 				t.Errorf("expected to write '%s' but got '%s'", scenario.expectedToWrite, writer.String())
 			}
 		})
+	}
+}
+
+func TestRunWithOutputWithCredentialStrategyCapturesOutput(t *testing.T) {
+	runner := getRunner()
+
+	cmdObj := &CmdObj{
+		cmd:    exec.Command("go", "version"),
+		runner: runner,
+	}
+	cmdObj.PromptOnCredentialRequest(gocui.NewFakeTask())
+
+	output, err := cmdObj.RunWithOutput()
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if !strings.Contains(output, "go version") {
+		t.Fatalf("expected output to contain go version, got: %q", output)
 	}
 }
