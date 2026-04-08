@@ -54,11 +54,7 @@ func (self *cmdObjRunner) RunWithOutput(cmdObj *CmdObj) (string, error) {
 	}
 
 	if cmdObj.GetCredentialStrategy() != NONE {
-		err := self.runWithCredentialHandling(cmdObj)
-		// for now we're not capturing output, just because it would take a little more
-		// effort and there's currently no use case for it. Some commands call RunWithOutput
-		// but ignore the output, hence why we've got this check here.
-		return "", err
+		return self.runWithCredentialHandlingAux(cmdObj)
 	}
 
 	if cmdObj.ShouldStreamOutput() {
@@ -79,11 +75,8 @@ func (self *cmdObjRunner) RunWithOutputs(cmdObj *CmdObj) (string, string, error)
 	}
 
 	if cmdObj.GetCredentialStrategy() != NONE {
-		err := self.runWithCredentialHandling(cmdObj)
-		// for now we're not capturing output, just because it would take a little more
-		// effort and there's currently no use case for it. Some commands call RunWithOutputs
-		// but ignore the output, hence why we've got this check here.
-		return "", "", err
+		output, err := self.runWithCredentialHandlingAux(cmdObj)
+		return output, "", err
 	}
 
 	if cmdObj.ShouldStreamOutput() {
@@ -215,24 +208,42 @@ type cmdHandler struct {
 	close      func() error
 }
 
+type outputSinkWriter struct {
+	outputSink func(string)
+}
+
+func (self *outputSinkWriter) Write(p []byte) (int, error) {
+	if self.outputSink != nil {
+		self.outputSink(string(p))
+	}
+
+	return len(p), nil
+}
+
 func (self *cmdObjRunner) runAndStream(cmdObj *CmdObj) error {
-	return self.runAndStreamAux(cmdObj, func(handler *cmdHandler, cmdWriter io.Writer) {
+	_, err := self.runAndStreamAux(cmdObj, func(handler *cmdHandler, cmdWriter io.Writer) {
 		go func() {
 			_, _ = io.Copy(cmdWriter, handler.stdoutPipe)
 		}()
 	})
+
+	return err
 }
 
 func (self *cmdObjRunner) runAndStreamAux(
 	cmdObj *CmdObj,
 	onRun func(*cmdHandler, io.Writer),
-) error {
+) (string, error) {
 	var cmdWriter io.Writer
 	var combinedOutput bytes.Buffer
 	if cmdObj.ShouldSuppressOutputUnlessError() {
 		cmdWriter = &combinedOutput
 	} else {
 		cmdWriter = self.guiIO.newCmdWriterFn()
+	}
+
+	if outputSink := cmdObj.GetOutputSink(); outputSink != nil {
+		cmdWriter = io.MultiWriter(cmdWriter, &outputSinkWriter{outputSink: outputSink})
 	}
 
 	if cmdObj.ShouldLog() {
@@ -252,7 +263,7 @@ func (self *cmdObjRunner) runAndStreamAux(
 		handler, err = self.getCmdHandlerNonPty(cmd)
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var stdout bytes.Buffer
@@ -277,22 +288,24 @@ func (self *cmdObjRunner) runAndStreamAux(
 			_, _ = self.guiIO.newCmdWriterFn().Write(combinedOutput.Bytes())
 		}
 
+		output := stdout.String() + stderr.String()
+
 		errStr := stderr.String()
 		if errStr != "" {
-			return errors.New(errStr)
+			return output, errors.New(errStr)
 		}
 
 		if cmdObj.ShouldIgnoreEmptyError() {
-			return nil
+			return output, nil
 		}
 		stdoutStr := stdout.String()
 		if stdoutStr != "" {
-			return errors.New(stdoutStr)
+			return output, errors.New(stdoutStr)
 		}
-		return errors.New("Command exited with non-zero exit code, but no output")
+		return output, errors.New("Command exited with non-zero exit code, but no output")
 	}
 
-	return nil
+	return stdout.String() + stderr.String(), nil
 }
 
 type CredentialType int
@@ -312,9 +325,14 @@ var failPromptFn = func(CredentialType) <-chan string {
 }
 
 func (self *cmdObjRunner) runWithCredentialHandling(cmdObj *CmdObj) error {
+	_, err := self.runWithCredentialHandlingAux(cmdObj)
+	return err
+}
+
+func (self *cmdObjRunner) runWithCredentialHandlingAux(cmdObj *CmdObj) (string, error) {
 	promptFn, err := self.getCredentialPromptFn(cmdObj)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	return self.runAndDetectCredentialRequest(cmdObj, promptFn)
@@ -338,7 +356,7 @@ func (self *cmdObjRunner) getCredentialPromptFn(cmdObj *CmdObj) (func(Credential
 func (self *cmdObjRunner) runAndDetectCredentialRequest(
 	cmdObj *CmdObj,
 	promptUserForCredential func(CredentialType) <-chan string,
-) error {
+) (string, error) {
 	// setting the output to english so we can parse it for a username/password request
 	cmdObj.AddEnvVars("LANG=C", "LC_ALL=C", "LC_MESSAGES=C")
 

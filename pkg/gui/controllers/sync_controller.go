@@ -9,6 +9,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/gui/context"
+	"github.com/jesseduffield/lazygit/pkg/gui/controllers/helpers"
 	"github.com/jesseduffield/lazygit/pkg/gui/types"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 )
@@ -195,16 +196,27 @@ type pushOpts struct {
 func (self *SyncController) pushAux(currentBranch *models.Branch, opts pushOpts) error {
 	return self.c.WithInlineStatus(currentBranch, types.ItemOperationPushing, context.LOCAL_BRANCHES_CONTEXT_KEY, func(task gocui.Task) error {
 		self.c.LogAction(self.c.Tr.Actions.Push)
-		err := self.c.Git().Sync.Push(
-			task,
-			git_commands.PushOpts{
-				Force:          opts.force,
-				ForceWithLease: opts.forceWithLease,
-				CurrentBranch:  currentBranch.Name,
-				UpstreamRemote: opts.upstreamRemote,
-				UpstreamBranch: opts.upstreamBranch,
-				SetUpstream:    opts.setUpstream,
-			})
+		pushCmdObj, err := self.c.Git().Sync.PushCmdObj(task, git_commands.PushOpts{
+			Force:          opts.force,
+			ForceWithLease: opts.forceWithLease,
+			CurrentBranch:  currentBranch.Name,
+			UpstreamRemote: opts.upstreamRemote,
+			UpstreamBranch: opts.upstreamBranch,
+			SetUpstream:    opts.setUpstream,
+		})
+		if err != nil {
+			return err
+		}
+
+		if self.c.UserConfig().Git.ShowHookOutput {
+			livePopup := helpers.NewLiveCommandOutputPopup(self.c, self.c.Tr.GitOutput)
+			pushCmdObj.StreamOutput().SetOutputSink(livePopup.OnOutput)
+			// Safe even when another popup appears after command completion (e.g. force-push confirmation):
+			// Close() only pops if this specific popup is still current.
+			defer livePopup.Close()
+		}
+
+		err = pushCmdObj.Run()
 		if err != nil {
 			if !opts.force && !opts.forceWithLease && strings.Contains(err.Error(), "Updates were rejected") {
 				if opts.remoteBranchStoredLocally {
@@ -229,6 +241,7 @@ func (self *SyncController) pushAux(currentBranch *models.Branch, opts pushOpts)
 			}
 			return err
 		}
+
 		self.c.Refresh(types.RefreshOptions{Mode: types.ASYNC})
 		return nil
 	})

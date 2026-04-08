@@ -309,6 +309,8 @@ type GitConfig struct {
 	OverrideGpg bool `yaml:"overrideGpg"`
 	// If true, do not allow force pushes
 	DisableForcePushing bool `yaml:"disableForcePushing"`
+	// If true, show command output in a popup while pushing or committing. Useful for seeing info from hooks like Husky.
+	ShowHookOutput bool `yaml:"showHookOutput"`
 	// See https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md#predefined-commit-message-prefix
 	CommitPrefix []CommitPrefixConfig `yaml:"commitPrefix"`
 	// See https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md#predefined-commit-message-prefix
@@ -872,6 +874,7 @@ func GetDefaultConfig() *UserConfig {
 			DiffContextSize:              3,
 			RenameSimilarityThreshold:    50,
 			DisableForcePushing:          false,
+			ShowHookOutput:               false,
 			CommitPrefixes:               map[string][]CommitPrefixConfig(nil),
 			BranchPrefix:                 "",
 			ParseEmoji:                   false,

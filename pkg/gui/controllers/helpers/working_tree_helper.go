@@ -146,6 +146,12 @@ func (self *WorkingTreeHelper) HandleCommitPressWithMessage(initialMessage strin
 
 func (self *WorkingTreeHelper) handleCommit(summary string, description string, forceSkipHooks bool) error {
 	cmdObj := self.c.Git().Commit.CommitCmdObj(summary, description, forceSkipHooks)
+	if self.c.UserConfig().Git.ShowHookOutput {
+		livePopup := NewLiveCommandOutputPopup(self.c, self.c.Tr.GitOutput)
+		cmdObj.SetOutputSink(livePopup.OnOutput)
+		defer livePopup.Close()
+	}
+
 	self.c.LogAction(self.c.Tr.Actions.Commit)
 	return self.gpgHelper.WithGpgHandling(cmdObj, git_commands.CommitGpgSign, self.c.Tr.CommittingStatus,
 		func() error {

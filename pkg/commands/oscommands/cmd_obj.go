@@ -37,6 +37,9 @@ type CmdObj struct {
 
 	// can be set so that we don't run certain commands simultaneously
 	mutex *deadlock.Mutex
+
+	// called with chunks of command output when streaming is enabled
+	outputSink func(string)
 }
 
 type CredentialStrategy int
@@ -178,6 +181,16 @@ func (self *CmdObj) WithMutex(mutex *deadlock.Mutex) *CmdObj {
 	self.mutex = mutex
 
 	return self
+}
+
+func (self *CmdObj) SetOutputSink(outputSink func(string)) *CmdObj {
+	self.outputSink = outputSink
+
+	return self
+}
+
+func (self *CmdObj) GetOutputSink() func(string) {
+	return self.outputSink
 }
 
 // runs the command and returns an error if any

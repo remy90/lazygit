@@ -145,6 +145,10 @@ func (self *PopupHandler) Prompt(opts types.PromptOpts) {
 	})
 }
 
+func (self *PopupHandler) CreatePopupPanel(opts types.CreatePopupPanelOpts) {
+	self.createPopupPanelFn(context.Background(), opts)
+}
+
 // returns the content that has currently been typed into the prompt. Useful for
 // asynchronously updating the suggestions list under the prompt.
 func (self *PopupHandler) GetPromptInput() string {
