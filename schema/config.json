@@ -400,6 +400,11 @@
           "description": "If true, do not allow force pushes",
           "default": false
         },
+        "showHookOutput": {
+          "type": "boolean",
+          "description": "If true, show command output in a popup while pushing or committing. Useful for seeing info from hooks like Husky.",
+          "default": false
+        },
         "commitPrefix": {
           "items": {
             "$ref": "#/$defs/CommitPrefixConfig"
