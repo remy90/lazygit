@@ -448,8 +448,8 @@ git:
   # If true, do not allow force pushes
   disableForcePushing: false
 
-  # If true, show a popup with output from successful push commands.
-  # Useful for seeing info from hooks like Husky/pre-push hooks.
+  # If true, show command output in a popup while pushing or committing.
+  # Useful for seeing info from hooks like Husky.
   showPushedHookOutput: false
 
   # See https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md#predefined-commit-message-prefix
